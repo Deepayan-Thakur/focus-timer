@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full antialiased">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zen Focus | Natural Timer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-deep: #0f172a; /* Slate 900 */
+            --glass-bg: rgba(30, 41, 59, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.05);
+            --accent-soft: #818cf8; /* Indigo 400 */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-deep);
+            color: #e2e8f0;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 50% 0%, #1e1b4b 0%, #0f172a 60%);
+        }
+
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Organic Background Animation */
+        .ambient-glow {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0; left: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 60%);
+            animation: breathe 8s ease-in-out infinite;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        /* Minimal Glass Interface */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Timer Ring */
+        .timer-ring {
+            transition: stroke-dashoffset 1s linear; /* Smoother transition */
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        /* Clean Inputs */
+        .time-input {
+            background: rgba(255,255,255,0.03);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            transition: all 0.3s ease;
+            border-radius: 4px;
+        }
+        .time-input:focus {
+            outline: none;
+            border-bottom-color: var(--accent-soft);
+            background: rgba(255,255,255,0.08);
+        }
+        
+        /* New AI Styles */
+        .ai-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all 0.2s;
+        }
+        .ai-input:focus {
+            border-color: #818cf8;
+            background: rgba(255, 255, 255, 0.08);
+            outline: none;
+        }
+
+        .loading-dots:after {
+            content: '.';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+
+        /* Utility */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col items-center justify-center relative">
+
+    <div class="ambient-glow"></div>
+
+    <!-- Main Container -->
+    <div class="relative z-10 w-full max-w-md h-full md:h-auto flex flex-col md:glass-panel md:rounded-3xl overflow-hidden md:border md:border-white/5">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center p-6 w-full relative">
+            <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-emerald-400/80"></div>
+                <span class="text-xs font-medium tracking-widest text-slate-400 uppercase">Zen Focus</span>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="getQuickTip()" class="text-slate-400 hover:text-indigo-300 transition-colors p-2 rounded-full hover:bg-white/5" title="Get a quick focus tip">
+                    <i data-lucide="lightbulb" class="w-5 h-5"></i>
+                </button>
+                <button onclick="toggleSettings()" class="text-slate-400 hover:text-white transition-colors p-2 rounded-full hover:bg-white/5">
+                    <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Timer View -->
+        <div class="flex-1 flex flex-col items-center justify-center relative px-8 py-2">
+            
+            <!-- Minimal Ring -->
+            <div class="relative w-64 h-64 md:w-72 md:h-72 flex items-center justify-center mb-8">
+                <!-- SVG Circle -->
+                <svg class="absolute inset-0 w-full h-full">
+                    <circle cx="50%" cy="50%" r="48%" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="2" />
+                    <circle id="progress-ring" class="timer-ring" cx="50%" cy="50%" r="48%" fill="none" stroke="url(#soft-gradient)" stroke-width="3" stroke-linecap="round" stroke-dasharray="289" stroke-dashoffset="0" />
+                    <defs>
+                        <linearGradient id="soft-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#818cf8" /> <!-- Indigo 400 -->
+                            <stop offset="100%" stop-color="#34d399" /> <!-- Emerald 400 -->
+                        </linearGradient>
+                    </defs>
+                </svg>
+
+                <!-- Time Display -->
+                <div class="text-center z-10 group cursor-pointer p-8" onclick="editTime()">
+                    <div id="time-display" class="text-6xl md:text-7xl font-mono font-light tracking-tight text-slate-100 group-hover:text-indigo-200 transition-colors">
+                        25:00
+                    </div>
+                    <div id="status-label" class="text-xs text-slate-400 font-medium tracking-widest uppercase mt-4">Ready to Flow</div>
+                </div>
+
+                <!-- Custom Time Input Overlay (Clean) -->
+                <div id="time-input-container" class="absolute inset-0 bg-slate-900/95 z-20 hidden flex-col items-center justify-center rounded-full backdrop-blur-xl">
+                    <div class="text-slate-400 text-[10px] font-medium uppercase tracking-widest mb-4">Set Duration</div>
+                    
+                    <div class="flex items-center justify-center gap-2 mb-6">
+                        <div class="flex flex-col items-center">
+                            <input type="number" id="input-h" placeholder="0" class="time-input w-14 h-14 text-center text-2xl font-mono bg-transparent" min="0" max="99">
+                            <span class="text-[9px] text-slate-500 mt-2">HR</span>
+                        </div>
+                        <span class="text-slate-600 text-xl pb-6">:</span>
+                        <div class="flex flex-col items-center">
+                            <input type="number" id="input-m" placeholder="0" class="time-input w-14 h-14 text-center text-2xl font-mono bg-transparent" min="0">
+                            <span class="text-[9px] text-slate-500 mt-2">MIN</span>
+                        </div>
+                        <span class="text-slate-600 text-xl pb-6">:</span>
+                        <div class="flex flex-col items-center">
+                            <input type="number" id="input-s" placeholder="0" class="time-input w-14 h-14 text-center text-2xl font-mono bg-transparent" min="0">
+                            <span class="text-[9px] text-slate-500 mt-2">SEC</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button onclick="closeEdit()" class="px-5 py-2 rounded-full text-slate-400 text-xs hover:text-white transition-colors">Cancel</button>
+                        <button onclick="saveCustomTime()" class="px-5 py-2 rounded-full bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 text-xs font-semibold transition-colors">Start</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls (Organic) -->
+            <div class="flex items-center gap-8 w-full justify-center">
+                <button onclick="resetTimer()" class="p-4 rounded-full text-slate-500 hover:text-white hover:bg-white/5 transition-all" aria-label="Reset">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                </button>
+                
+                <button id="main-btn" onclick="toggleTimer()" class="w-20 h-20 rounded-full bg-slate-100 text-slate-900 flex items-center justify-center shadow-lg shadow-white/5 hover:scale-105 transition-all active:scale-95">
+                    <i data-lucide="play" class="w-8 h-8 fill-slate-900 ml-1"></i>
+                </button>
+
+                <button onclick="toggleAI()" class="p-4 rounded-full text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-all relative" aria-label="AI Genius">
+                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Presets (Subtle) -->
+        <div class="p-8 w-full">
+            <div class="grid grid-cols-4 gap-3">
+                <button onclick="setPreset(10)" class="preset-btn py-2 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all">10m</button>
+                <button onclick="setPreset(25)" class="preset-btn py-2 rounded-lg text-xs font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 transition-all">25m</button>
+                <button onclick="setPreset(45)" class="preset-btn py-2 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all">45m</button>
+                <button onclick="setPreset(60)" class="preset-btn py-2 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all">1h</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Modal -->
+    <div id="ai-modal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md hidden flex items-end md:items-center justify-center transition-all duration-300">
+        <div class="bg-[#0f172a] w-full max-w-sm rounded-t-2xl md:rounded-2xl border border-white/5 p-6 shadow-2xl transform translate-y-0 relative">
+             <div class="absolute inset-0 bg-indigo-500/5 pointer-events-none rounded-2xl animate-pulse hidden" id="ai-loading-bg"></div>
+            
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-indigo-400"></i> Gemini Focus Architect
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">AI-Optimized Session Planning</p>
+                </div>
+                <button onclick="toggleAI()" class="text-slate-500 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <!-- AI Input Form -->
+            <div id="ai-form" class="space-y-6">
+                <div>
+                    <label class="text-[10px] text-slate-400 uppercase tracking-widest mb-2 block">What are you working on?</label>
+                    <input type="text" id="task-input" placeholder="e.g. Study for History Exam" class="w-full p-3 rounded-lg ai-input text-sm">
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-[10px] text-slate-400 uppercase tracking-widest mb-3">
+                        <span>Current Energy Level</span>
+                        <span id="energy-val" class="text-indigo-400 font-medium">Balanced</span>
+                    </div>
+                    <input type="range" id="energy-slider" min="1" max="3" value="2" class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                    <div class="flex justify-between text-[9px] text-slate-600 mt-2">
+                        <span>Low (Tired)</span>
+                        <span>High (Energetic)</span>
+                    </div>
+                </div>
+
+                <button onclick="generateSessionAI()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white text-sm font-medium shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i> Generate Plan
+                </button>
+            </div>
+
+            <!-- AI Loading State -->
+            <div id="ai-loading" class="hidden py-8 text-center space-y-4">
+                <div class="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto"></div>
+                <p class="text-sm text-slate-300 font-medium">Consulting Gemini<span class="loading-dots"></span></p>
+            </div>
+
+            <!-- AI Result State -->
+            <div id="ai-result" class="hidden space-y-4">
+                <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs text-indigo-300 uppercase tracking-wider font-semibold">Suggested Plan</span>
+                        <span id="result-time" class="text-lg font-bold text-white font-mono">25m</span>
+                    </div>
+                    <div class="flex items-center gap-2 mb-3">
+                         <i data-lucide="music" class="w-3 h-3 text-slate-400"></i>
+                         <span id="result-sound" class="text-xs text-slate-400 capitalize">River</span>
+                    </div>
+                    <p id="result-tip" class="text-sm text-slate-200 italic leading-relaxed">"Start with the hardest task first..."</p>
+                </div>
+                
+                <button onclick="applyAIPlan()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-white text-sm font-medium shadow-lg shadow-emerald-900/20 transition-all">
+                    Start Session
+                </button>
+                <button onclick="resetAIForm()" class="w-full py-2 text-slate-400 hover:text-white text-xs">
+                    Try Again
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Tip Modal -->
+    <div id="tip-modal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="bg-[#0f172a] w-full max-w-sm rounded-2xl border border-white/10 p-6 shadow-2xl text-center">
+            <div class="w-10 h-10 rounded-full bg-yellow-500/10 text-yellow-500 flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="lightbulb" class="w-5 h-5"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-white mb-2">Focus Tip</h3>
+            <p id="quick-tip-content" class="text-slate-300 text-sm leading-relaxed mb-6">Loading...</p>
+            <button onclick="document.getElementById('tip-modal').classList.add('hidden')" class="w-full py-2 bg-white/5 hover:bg-white/10 rounded-lg text-slate-300 text-sm">Got it</button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md hidden flex items-center justify-center p-4">
+        <div class="bg-[#0f172a] w-full max-w-sm rounded-2xl border border-white/5 p-6 shadow-2xl">
+            <h3 class="text-lg font-semibold text-white mb-6">Environment</h3>
+            
+            <div class="space-y-5">
+                <div>
+                    <label class="text-[10px] text-slate-500 uppercase tracking-widest mb-2 block">Start Sound</label>
+                    <select id="start-sound-select" class="w-full bg-slate-800 border border-white/5 rounded-lg p-3 text-slate-200 text-sm focus:border-indigo-500/50 outline-none">
+                        <option value="soft-chime">Soft Chime</option>
+                        <option value="breath">Deep Breath</option>
+                        <option value="bowl">Singing Bowl</option>
+                        <option value="none">Silent</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-[10px] text-slate-500 uppercase tracking-widest mb-2 block">Nature Loop</label>
+                    <select id="ambient-sound-select" class="w-full bg-slate-800 border border-white/5 rounded-lg p-3 text-slate-200 text-sm focus:border-indigo-500/50 outline-none">
+                        <option value="none">Silence</option>
+                        <option value="river">Flowing River</option>
+                        <option value="rain">Light Rain</option>
+                        <option value="forest">Night Forest</option>
+                        <option value="brown">Brown Noise (Deep)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-[10px] text-slate-500 uppercase tracking-widest mb-2 block">Completion</label>
+                    <select id="end-sound-select" class="w-full bg-slate-800 border border-white/5 rounded-lg p-3 text-slate-200 text-sm focus:border-indigo-500/50 outline-none">
+                        <option value="bowl">Singing Bowl</option>
+                        <option value="bell">Zen Bell</option>
+                        <option value="gong">Soft Gong</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="toggleSettings()" class="mt-8 w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-slate-300 text-xs font-medium transition-colors">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = ""; // Gemini API Key injected by environment
+
+        // --- 1. Audio Engine (Natural & Continuous) ---
+        class AudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.ambientNodes = [];
+                this.masterGain = null;
+                this.settings = {
+                    start: 'soft-chime',
+                    ambient: 'none',
+                    end: 'bowl'
+                };
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.masterGain = this.ctx.createGain();
+                    this.masterGain.gain.value = 0.6;
+                    this.masterGain.connect(this.ctx.destination);
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            // High quality white noise buffer
+            createNoiseBuffer() {
+                const bufferSize = this.ctx.sampleRate * 4; // 4 seconds for smoother loop
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                return buffer;
+            }
+
+            // Smooth Tone Generator
+            playTone(freq, type, duration, startTime = 0, vol = 0.1) {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime + startTime);
+                
+                // Attack
+                gain.gain.setValueAtTime(0, this.ctx.currentTime + startTime);
+                gain.gain.linearRampToValueAtTime(vol, this.ctx.currentTime + startTime + 0.05);
+                // Decay
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + startTime + duration);
+
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(this.ctx.currentTime + startTime);
+                osc.stop(this.ctx.currentTime + startTime + duration);
+            }
+
+            // --- Continuous Nature Loops ---
+
+            playBrownNoise() {
+                // Deep, rumbly texture for focus
+                const bufferSrc = this.ctx.createBufferSource();
+                bufferSrc.buffer = this.createNoiseBuffer();
+                bufferSrc.loop = true;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 400; // Lower cutoff for warmth
+
+                const gain = this.ctx.createGain();
+                gain.gain.value = 0.15;
+
+                bufferSrc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.masterGain);
+                bufferSrc.start();
+                this.ambientNodes.push({ stop: () => { 
+                    gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5); // Fade out
+                    setTimeout(() => { bufferSrc.stop(); bufferSrc.disconnect(); }, 500);
+                }});
+            }
+
+            playRain() {
+                // Pink noise base
+                const bufferSrc = this.ctx.createBufferSource();
+                bufferSrc.buffer = this.createNoiseBuffer();
+                bufferSrc.loop = true;
+                
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 800; 
+
+                const gain = this.ctx.createGain();
+                gain.gain.value = 0.08;
+
+                bufferSrc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.masterGain);
+                bufferSrc.start();
+                this.ambientNodes.push({ stop: () => { 
+                    gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+                    setTimeout(() => { bufferSrc.stop(); bufferSrc.disconnect(); }, 500);
+                }});
+            }
+
+            playForest() {
+                // Wind + Rustle (Bandpass noise with slow modulation)
+                const bufferSrc = this.ctx.createBufferSource();
+                bufferSrc.buffer = this.createNoiseBuffer();
+                bufferSrc.loop = true;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 600;
+
+                // Modulate amplitude for wind gusts
+                const lfo = this.ctx.createOscillator();
+                lfo.type = 'sine';
+                lfo.frequency.value = 0.1; // Very slow gusts
+                
+                const lfoGain = this.ctx.createGain();
+                lfoGain.gain.value = 0.02; // Subtle depth
+
+                const baseGain = this.ctx.createGain();
+                baseGain.gain.value = 0.04;
+
+                bufferSrc.connect(filter);
+                filter.connect(baseGain);
+                
+                // Apply LFO to gain
+                lfo.connect(lfoGain);
+                lfoGain.connect(baseGain.gain);
+
+                baseGain.connect(this.masterGain);
+                bufferSrc.start();
+                lfo.start();
+
+                this.ambientNodes.push({ stop: () => { 
+                    baseGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 1);
+                    setTimeout(() => { 
+                        bufferSrc.stop(); lfo.stop(); 
+                        bufferSrc.disconnect(); lfo.disconnect(); 
+                    }, 1000);
+                }});
+            }
+
+            playRiver() {
+                // Consistent "white/pink" noise mix
+                const bufferSrc = this.ctx.createBufferSource();
+                bufferSrc.buffer = this.createNoiseBuffer();
+                bufferSrc.loop = true;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 500;
+
+                const gain = this.ctx.createGain();
+                gain.gain.value = 0.06;
+
+                bufferSrc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.masterGain);
+                bufferSrc.start();
+
+                this.ambientNodes.push({ stop: () => { 
+                    gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+                    setTimeout(() => { bufferSrc.stop(); bufferSrc.disconnect(); }, 500);
+                }});
+            }
+
+            // --- Public Control ---
+
+            startAmbient() {
+                this.init();
+                this.stopAmbient(); // Clear existing
+                const s = this.settings.ambient;
+                if (s === 'none') return;
+                
+                if (s === 'rain') this.playRain();
+                if (s === 'forest') this.playForest();
+                if (s === 'river') this.playRiver();
+                if (s === 'brown') this.playBrownNoise();
+            }
+
+            stopAmbient() {
+                this.ambientNodes.forEach(n => n.stop());
+                this.ambientNodes = [];
+            }
+
+            playStart() {
+                this.init();
+                const s = this.settings.start;
+                if (s === 'none') return;
+
+                if (s === 'soft-chime') {
+                    // Gentle rising chime
+                    this.playTone(440, 'sine', 1.2, 0, 0.2); 
+                    this.playTone(554, 'sine', 1.2, 0.1, 0.15); 
+                } else if (s === 'breath') {
+                   // Soft swelling noise
+                   this.playTone(100, 'triangle', 2, 0, 0.05);
+                } else if (s === 'bowl') {
+                    // Deep sine
+                    this.playTone(220, 'sine', 2.0, 0, 0.2);
+                }
+            }
+
+            playEnd() {
+                this.init();
+                const s = this.settings.end;
+                if (s === 'bowl') {
+                    [220, 330, 440].forEach((f, i) => this.playTone(f, 'sine', 3, 0, 0.2 - (i*0.05)));
+                } else if (s === 'bell') {
+                    this.playTone(880, 'triangle', 2.5, 0, 0.1);
+                } else if (s === 'gong') {
+                    this.playTone(110, 'sine', 3.0, 0, 0.4);
+                    this.playTone(112, 'sine', 2.8, 0, 0.2); // Beating effect
+                }
+            }
+        }
+
+        // --- 2. Application Logic ---
+        
+        const audio = new AudioEngine();
+        let timer = null;
+        let timeLeft = 25 * 60;
+        let totalTime = 25 * 60;
+        let isRunning = false;
+        
+        // DOM Elements
+        const timeDisplay = document.getElementById('time-display');
+        const statusLabel = document.getElementById('status-label');
+        const progressRing = document.getElementById('progress-ring');
+        const mainBtnIcon = document.querySelector('#main-btn i');
+        const radius = progressRing.r.baseVal.value;
+        const circumference = radius * 2 * Math.PI;
+
+        progressRing.style.strokeDasharray = `${circumference} ${circumference}`;
+        progressRing.style.strokeDashoffset = 0;
+
+        lucide.createIcons();
+
+        function setProgress(percent) {
+            const offset = circumference - (percent / 100) * circumference;
+            progressRing.style.strokeDashoffset = offset;
+        }
+
+        // Formatter (H:M:S)
+        function formatTime(totalSeconds) {
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            
+            if (h > 0) {
+                return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+            }
+            return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        function updateDisplay() {
+            timeDisplay.textContent = formatTime(timeLeft);
+            const percent = totalTime > 0 ? (timeLeft / totalTime) * 100 : 0;
+            setProgress(percent);
+            
+            // Text color shift (Subtle)
+            if (percent < 10) {
+                timeDisplay.classList.add('text-indigo-300');
+                timeDisplay.classList.remove('text-slate-100');
+            } else {
+                timeDisplay.classList.remove('text-indigo-300');
+                timeDisplay.classList.add('text-slate-100');
+            }
+            
+            document.title = `${formatTime(timeLeft)} - Zen Focus`;
+        }
+
+        function toggleTimer() {
+            if (isRunning) pauseTimer();
+            else startTimer();
+        }
+
+        function startTimer() {
+            if (timeLeft <= 0) return;
+            isRunning = true;
+            statusLabel.textContent = "Focusing";
+            statusLabel.classList.add('text-emerald-400');
+            statusLabel.classList.remove('text-slate-400');
+            
+            mainBtnIcon.setAttribute('data-lucide', 'pause');
+            lucide.createIcons();
+            
+            audio.playStart();
+            audio.startAmbient();
+
+            timer = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+                if (timeLeft <= 0) completeSession();
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            isRunning = false;
+            clearInterval(timer);
+            statusLabel.textContent = "Paused";
+            statusLabel.classList.remove('text-emerald-400');
+            statusLabel.classList.add('text-slate-400');
+            mainBtnIcon.setAttribute('data-lucide', 'play');
+            lucide.createIcons();
+            audio.stopAmbient();
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            timeLeft = totalTime;
+            statusLabel.textContent = "Ready to Flow";
+            statusLabel.className = "text-xs text-slate-400 font-medium tracking-widest uppercase mt-4";
+            updateDisplay();
+        }
+
+        function setPreset(minutes) {
+            if(isRunning) resetTimer();
+            totalTime = minutes * 60;
+            timeLeft = totalTime;
+            updateDisplay();
+            
+            // Highlight
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                if(btn.textContent.includes(minutes + (minutes >= 60 ? 'h' : 'm'))) {
+                    btn.classList.add('bg-indigo-500/10', 'text-indigo-300', 'border', 'border-indigo-500/20');
+                    btn.classList.remove('bg-white/5', 'text-slate-400');
+                } else {
+                    btn.classList.remove('bg-indigo-500/10', 'text-indigo-300', 'border', 'border-indigo-500/20');
+                    btn.classList.add('bg-white/5', 'text-slate-400');
+                }
+            });
+        }
+
+        function completeSession() {
+            pauseTimer();
+            timeLeft = 0;
+            updateDisplay();
+            statusLabel.textContent = "Session Complete";
+            statusLabel.className = "text-xs text-indigo-400 font-bold tracking-widest uppercase mt-4";
+            audio.playEnd();
+        }
+
+        // --- Custom Time Logic ---
+        function editTime() {
+            if(isRunning) return;
+            const container = document.getElementById('time-input-container');
+            container.classList.remove('hidden');
+            container.classList.add('flex');
+            
+            const h = Math.floor(timeLeft / 3600);
+            const m = Math.floor((timeLeft % 3600) / 60);
+            const s = timeLeft % 60;
+            
+            document.getElementById('input-h').value = h > 0 ? h : '';
+            document.getElementById('input-m').value = m;
+            document.getElementById('input-s').value = s > 0 ? s : '';
+            
+            document.getElementById('input-m').focus();
+        }
+
+        function closeEdit() {
+            const container = document.getElementById('time-input-container');
+            container.classList.add('hidden');
+            container.classList.remove('flex');
+        }
+
+        function saveCustomTime() {
+            const hInput = parseInt(document.getElementById('input-h').value) || 0;
+            const mInput = parseInt(document.getElementById('input-m').value) || 0;
+            const sInput = parseInt(document.getElementById('input-s').value) || 0;
+            
+            totalTime = (hInput * 3600) + (mInput * 60) + sInput;
+            
+            if(totalTime > 0) {
+                timeLeft = totalTime;
+                updateDisplay();
+                document.querySelectorAll('.preset-btn').forEach(btn => 
+                    btn.classList.remove('bg-indigo-500/10', 'text-indigo-300', 'border', 'border-indigo-500/20')
+                );
+            }
+            closeEdit();
+        }
+
+        // --- Modals ---
+        function toggleSettings() {
+            const m = document.getElementById('settings-modal');
+            m.classList.toggle('hidden');
+            if(m.classList.contains('hidden')) {
+                audio.settings.start = document.getElementById('start-sound-select').value;
+                audio.settings.ambient = document.getElementById('ambient-sound-select').value;
+                audio.settings.end = document.getElementById('end-sound-select').value;
+            }
+        }
+
+        function toggleAI() {
+            const m = document.getElementById('ai-modal');
+            m.classList.toggle('hidden');
+            if(!m.classList.contains('hidden')) {
+                document.getElementById('task-input').focus();
+            }
+        }
+
+        // --- GEMINI AI LOGIC ---
+        
+        let pendingAIPlan = null;
+
+        document.getElementById('energy-slider').addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            const label = document.getElementById('energy-val');
+            if(val === 1) { label.textContent = "Low (Tired)"; label.className = "text-slate-400"; }
+            if(val === 2) { label.textContent = "Balanced"; label.className = "text-indigo-400"; }
+            if(val === 3) { label.textContent = "High (Flow)"; label.className = "text-emerald-400"; }
+        });
+
+        async function callGemini(prompt) {
+            try {
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }]
+                        })
+                    }
+                );
+                const data = await response.json();
+                return data.candidates[0].content.parts[0].text;
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                throw error;
+            }
+        }
+
+        async function generateSessionAI() {
+            const task = document.getElementById('task-input').value;
+            const energyVal = document.getElementById('energy-slider').value;
+            const energyText = energyVal === "1" ? "Low/Tired" : (energyVal === "3" ? "High/Energetic" : "Normal/Balanced");
+
+            if (!task.trim()) {
+                document.getElementById('task-input').classList.add('border-red-500');
+                setTimeout(() => document.getElementById('task-input').classList.remove('border-red-500'), 2000);
+                return;
+            }
+
+            // UI State: Loading
+            document.getElementById('ai-form').classList.add('hidden');
+            document.getElementById('ai-loading').classList.remove('hidden');
+
+            const prompt = `
+                Act as a productivity expert. I want to work on: "${task}". My energy level is: ${energyText}.
+                Recommend a focus session duration (in minutes, max 90, min 5).
+                Choose ONE ambient sound from this list: ['river', 'rain', 'forest', 'brown', 'none'].
+                Provide a very short, 1-sentence specific tip to get started on this task.
+                Respond ONLY in JSON format: { "minutes": number, "sound": string, "tip": string }
+            `;
+
+            try {
+                const resultText = await callGemini(prompt);
+                // Clean response in case of markdown blocks
+                const jsonStr = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+                const plan = JSON.parse(jsonStr);
+
+                // Update Result UI
+                document.getElementById('result-time').textContent = plan.minutes + 'm';
+                document.getElementById('result-sound').textContent = plan.sound;
+                document.getElementById('result-tip').textContent = `"${plan.tip}"`;
+
+                pendingAIPlan = plan;
+
+                // UI State: Result
+                document.getElementById('ai-loading').classList.add('hidden');
+                document.getElementById('ai-result').classList.remove('hidden');
+
+            } catch (e) {
+                alert("Could not connect to the productivity spirits. Please try again.");
+                resetAIForm();
+            }
+        }
+
+        function applyAIPlan() {
+            if (!pendingAIPlan) return;
+
+            // Apply settings
+            setPreset(pendingAIPlan.minutes);
+            
+            const validSounds = ['river', 'rain', 'forest', 'brown', 'none'];
+            let sound = validSounds.includes(pendingAIPlan.sound.toLowerCase()) ? pendingAIPlan.sound.toLowerCase() : 'river';
+            
+            document.getElementById('ambient-sound-select').value = sound;
+            audio.settings.ambient = sound;
+            statusLabel.textContent = "AI Optimized Session";
+
+            toggleAI();
+            resetAIForm();
+        }
+
+        function resetAIForm() {
+            document.getElementById('ai-form').classList.remove('hidden');
+            document.getElementById('ai-loading').classList.add('hidden');
+            document.getElementById('ai-result').classList.add('hidden');
+            document.getElementById('task-input').value = "";
+        }
+
+        async function getQuickTip() {
+            const modal = document.getElementById('tip-modal');
+            const content = document.getElementById('quick-tip-content');
+            modal.classList.remove('hidden');
+            content.textContent = "Loading wisdom...";
+
+            try {
+                const prompt = "Give me one short, powerful, anti-procrastination tip or affirmation. Max 20 words.";
+                const tip = await callGemini(prompt);
+                content.textContent = tip.trim();
+            } catch (e) {
+                content.textContent = "Focus on the present moment. (Offline Tip)";
+            }
+        }
+
+        // Init
+        updateDisplay();
+    </script>
+</body>
+</html>
